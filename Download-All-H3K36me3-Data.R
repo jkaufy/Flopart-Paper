@@ -19,7 +19,7 @@ for (row in 1:nrow(datasets)) {
     load(con)
     names(counts)[names(counts) == 'coverage'] <- 'count'
     # write.csv(counts,count_file, row.names = FALSE)
-    saveRDS(counts, file=count_file)
+    write.csv(counts, file=count_file)
     close(con)
   }
   
@@ -41,7 +41,7 @@ for (row in 1:nrow(datasets)) {
     new.regions.dt <- do.call(rbind, split.regions)
     
     # write.csv(new.regions.dt, label_file, row.names = FALSE)
-    saveRDS(new.regions.dt, file=label_file)
+    write.csv(new.regions.dt, file=label_file)
     close(con)
   }
 }

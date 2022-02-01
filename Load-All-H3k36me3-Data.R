@@ -9,15 +9,16 @@ loadH3K36me3Datasets <- function() {
   
   for (file.type in names(file_prefixs)){
     file.prefix <- file_prefixs[[file.type]]
-    file_names <- list.files(file.prefix, pattern = "*.rds")
-    file_locations[[file.type]] <- paste(file.prefix, 
-                                         list.files(file.prefix, pattern = "*.rds"), sep="")
+    file_names <- paste(file.prefix, 
+                        list.files(file.prefix, pattern = "*.csv"), sep = "")
+    file_locations[[file.type]] <- file_names
   }
+  
   
   H3K36me3_datasets <- list()
   for (file.type in names(file_locations)){
     H3K36me3_datasets[[file.type]] <- lapply(file_locations[[file.type]], 
-                                             function(x){readRDS(file = x)})
+                                             function(x){read.csv(file = x)})
   }
   
   return(H3K36me3_datasets)

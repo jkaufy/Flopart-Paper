@@ -1,90 +1,98 @@
-# Load in all datasets
+# Load in all data sets
+library(data.table)
 source("Load-All-H3k36me3-Data.R")
 
 H3K36me_data <- loadH3K36me3Datasets()
 
-count_data <- H3K36me_data$count
-label_data <- H3K36me_data$labels
-
 # lets run with one data set first
-
-penalties <- c(0.001, 0.01, 0.1, 1, 1.5, 2, 2.5, 3, 5, 10)
+# increase above 10 log scale
+penalties <- 10^seq(-3, 3, l=20)
 n.fold <- 2
 
-# for each sample ID
-algo = "Flopart"
 total_label_error_list <- list()
 
-for( dataset in 5:length(count_data)){
+sets <- list("train","test")
+algoritms <- list(Flopart = FLOPART::FLOPART, 
+    FPOP =  PeakSegOptimal::PeakSegFPOPchrom)
+
+cache.prefix <- "~/Flopart-Paper/cache/cross-validation/"
+
+# length(H3K36me_data$count)
+for(dataset in 1:1){
   print(dataset)
   
-  one_count <- count_data[[dataset]]
-  one_label <- label_data[[dataset]]
+  one_count <- H3K36me_data$count[[dataset]]
+  one_label <- H3K36me_data$labels[[dataset]]
   
   sample_split_count <- split(one_count, one_count$sample.id)
   sample_split_label <- split(one_label, one_label$sample.id)
   
-  dist
-  
-  for (sample.id in names(sample_split_count)){
-    print(sample.id)
-    one_sample_count <- sample_split_count[[sample.id]]
-    one_sample_label <- sample_split_label[[sample.id]]
-    
-    # for each penalty
-    for(pen in penalties){
-      segs.list <- list()
-      # for each fold
-      algo = "Flopart"
-      for(fold in range(1:n.fold)){
-        train_set <- one_sample_label[one_sample_label$random.fold == fold,]
-        
-        # run flopart in this
-        flopart <- FLOPART::FLOPART(one_sample_count, one_sample_label, pen)
-        FLOPART.segs <- flopart[["segments_dt"]]
-        
-        segs.list[[paste(dataset, algo, sample.id, pen, fold)]] <- data.table(
-          dataset,
-          algo,
-          sample.id,
-          pen,
-          fold,
-          flopart[["segments_dt"]])
+  if (!('peaks' %in% one_label$annotation)){
+    for (sample.id in names(sample_split_count)){
+      one_sample_count <- sample_split_count[[sample.id]]
+      one_sample_label <- sample_split_label[[sample.id]]
+      
+      # for each penalty
+      for(pen in penalties){
+        segs.list <- list()
+        # for each fold
+        for(fold in 1:n.fold){
+          
+          setDT(one_sample_label)
+          one_sample_label[, set := ifelse(fold==random.fold, "test", "train")]
+          
+          cache.save <- paste(dataset, "-", pen, "-", fold,".RData", sep = "")
+          cache.file <- paste(cache.prefix,cache.save, sep = "")
+          
+          if(file.exists(cache.file)){
+            segs.list <- readRDS(cache.file)
+          }else{
+            print("why")
+            for (algo in names(algoritms)){
+              algo.fun <- algoritms[[algo]]
+              
+              if(algo == "Flopart"){
+                fit <- algo.fun(one_sample_count, 
+                        one_sample_label[set == "train"], pen)
+                segs <- fit[["segments_dt"]]
+              }else{
+                fit <- algo.fun(one_sample_count, pen)
+                segs <- data.table(fit$segments)
+              }
+              
+              segs.list[[paste(algo)]] <- data.table(
+                algo,
+                segs)
+            }
+            saveRDS(segs.list, file = cache.file)
+          }
+          
+          for (set in sets){
+            for (seg in segs.list){
+              err.df <- PeakError::PeakErrorChrom(seg[status=="peak"], 
+                                                  one_sample_label[set == set])
+              algo = seg$algo[1]
+              
+              total_label_error_list[[paste(dataset, sample.id, pen, fold, algo, set)]] <- data.table(
+                dataset,
+                sample.id,
+                pen,
+                fold,
+                algo,
+                set,
+                errors = sum(err.df$fp) + sum(err.df$fn))
+            }
+          }
+        }
+        gc()
       }
-      
-      algo = "FPOP"
-      fit <- PeakSegOptimal::PeakSegFPOPchrom(one_sample_count, pen)
-      fpop.segs <- data.table(fit$segments)
-      
-      segs.list[[paste(dataset, algo, sample.id, pen, fold)]] <- data.table(
-        dataset,
-        algo,
-        sample.id,
-        pen,
-        fold,
-        data.table(fit$segments))
-      
-      for (seg in segs.list){
-        pkg.peaks <- seg[status=="peak"]
-        err.df <- PeakError::PeakErrorChrom(pkg.peaks, one_sample_label)
-        errors <- sum(err.df$fp) + sum(err.df$fn)
-        
-        algo = seg$algo[1]
-        fold = seg$fold[1]
-        
-        total_label_error_list[[paste(dataset, sample.id, pen, fold, algo)]] <- data.table(
-          dataset,
-          sample.id,
-          pen,
-          fold,
-          algo,
-          errors)
-      }
-      
     }
   }
 }
 
 total.label.error.dt <- do.call(rbind, total_label_error_list)
-total.label.error.dt <- total.label.error.dt[order(dataset, sample.id, pen)]
+total.label.error.dt <- total.label.error.dt[order(dataset, sample.id, pen, fold)]
+
+write.csv(total.label.error.dt, file="total.label.error.dt.csv")
+
 
