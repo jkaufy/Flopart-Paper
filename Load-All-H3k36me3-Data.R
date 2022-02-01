@@ -1,9 +1,9 @@
-# Loads in all the H3k36me3 datasets
-loadH3K36me3Datasets <- function() {
+# Loads in all the H3k36me3 data sets
+createH3K36me3DataSetRData <- function() {
   library(data.table)
   
-  counts <- "~/Flopart-Paper/data/H3K36me3/Counts/"
-  labels <- "~/Flopart-Paper/data/H3K36me3/Labels/"
+  counts <- paste(getwd(),"/Flopart-Paper/data/H3K36me3/Counts/", sep = "")
+  labels <- paste(getwd(),"/Flopart-Paper/data/H3K36me3/Labels/", sep = "")
   file_prefixs <- list(count = counts,labels = labels)
   file_locations <- list()
   
@@ -20,6 +20,18 @@ loadH3K36me3Datasets <- function() {
     H3K36me3_datasets[[file.type]] <- lapply(file_locations[[file.type]], 
                                              function(x){read.csv(file = x)})
   }
+  saveRDS(H3K36me3_datasets, file = paste(getwd(),
+    "/Flopart-Paper/data/H3K36me3/H3K36me3-datasets.RData", sep = ""))
+}
+
+loadH3K36me3DataSetRData <- function() {
+  H3K.loc <- paste(getwd(),
+    "/Flopart-Paper/data/H3K36me3/H3K36me3-datasets.RData", sep = "")
   
+  if(!file.exists(H3K.loc)){
+    createH3K36me3DataSetRData()
+  }
+    
+  H3K36me3_datasets <- readRDS(H3K.loc)
   return(H3K36me3_datasets)
 }

@@ -47,7 +47,6 @@ for(dataset in 1:1){
           if(file.exists(cache.file)){
             segs.list <- readRDS(cache.file)
           }else{
-            print("why")
             for (algo in names(algoritms)){
               algo.fun <- algoritms[[algo]]
               

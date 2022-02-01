@@ -3,10 +3,10 @@ library(data.table)
 library(dplyr)
 library(readr)
 
-datasets <- read_csv("data/H3K36me3-Dataset-List.csv")
+datasets <- read.csv("data/H3K36me3-Dataset-List.csv")
 data_prefix <- "https://rcdata.nau.edu/genomic-ml/chip-seq-chunk-db/"
-count_prefix <- "~/Flopart-Paper/data/H3K36me3/Counts/"
-label_prefix <- "~/Flopart-Paper/data/H3K36me3/Labels/"
+count_prefix <- paste(getwd(),"/data/H3K36me3/Counts/", sep = "")
+label_prefix <- paste(getwd(),"/data/H3K36me3/Labels/", sep = "")
 set.seed(1)
 
 for (row in 1:nrow(datasets)) {
@@ -18,8 +18,7 @@ for (row in 1:nrow(datasets)) {
     con <- url(paste(data_prefix, datasets$file[row], sep=""))
     load(con)
     names(counts)[names(counts) == 'coverage'] <- 'count'
-    # write.csv(counts,count_file, row.names = FALSE)
-    write.csv(counts, file=count_file)
+    write.csv(counts,count_file, row.names = FALSE)
     close(con)
   }
   
@@ -40,10 +39,8 @@ for (row in 1:nrow(datasets)) {
     
     new.regions.dt <- do.call(rbind, split.regions)
     
-    # write.csv(new.regions.dt, label_file, row.names = FALSE)
-    write.csv(new.regions.dt, file=label_file)
+    write.csv(new.regions.dt, label_file, row.names = FALSE)
     close(con)
   }
 }
-
 
