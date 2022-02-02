@@ -5,8 +5,8 @@ library(readr)
 
 datasets <- read.csv("data/H3K36me3-Dataset-List.csv")
 data_prefix <- "https://rcdata.nau.edu/genomic-ml/chip-seq-chunk-db/"
-count_prefix <- paste(getwd(),"/data/H3K36me3/Counts/", sep = "")
-label_prefix <- paste(getwd(),"/data/H3K36me3/Labels/", sep = "")
+count_prefix <- "~/R/Flopart-Paper/data/H3K36me3/Counts/"
+label_prefix <- "~/R/Flopart-Paper/data/H3K36me3/Labels/"
 set.seed(1)
 
 for (row in 1:nrow(datasets)) {

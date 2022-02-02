@@ -2,9 +2,9 @@
 library(data.table)
 source("Load-All-H3k36me3-Data.R")
 
-H3K36me_data <- loadH3K36me3Datasets()
+H3K36me_data <- loadH3K36me3DataSetRData()
 
-# lets run with one data set first
+
 # increase above 10 log scale
 penalties <- 10^seq(-3, 3, l=20)
 n.fold <- 2
@@ -15,7 +15,7 @@ sets <- list("train","test")
 algoritms <- list(Flopart = FLOPART::FLOPART, 
     FPOP =  PeakSegOptimal::PeakSegFPOPchrom)
 
-cache.prefix <- "~/Flopart-Paper/cache/cross-validation/"
+cache.prefix <- "~/R/Flopart-Paper/cache/cross-validation/"
 
 # length(H3K36me_data$count)
 for(dataset in 1:1){
@@ -45,8 +45,11 @@ for(dataset in 1:1){
           cache.file <- paste(cache.prefix,cache.save, sep = "")
           
           if(file.exists(cache.file)){
+            
             segs.list <- readRDS(cache.file)
+            
           }else{
+            
             for (algo in names(algoritms)){
               algo.fun <- algoritms[[algo]]
               
@@ -64,6 +67,7 @@ for(dataset in 1:1){
                 segs)
             }
             saveRDS(segs.list, file = cache.file)
+            
           }
           
           for (set in sets){
@@ -92,6 +96,6 @@ for(dataset in 1:1){
 total.label.error.dt <- do.call(rbind, total_label_error_list)
 total.label.error.dt <- total.label.error.dt[order(dataset, sample.id, pen, fold)]
 
-write.csv(total.label.error.dt, file="total.label.error.dt.csv")
+# write.csv(total.label.error.dt, file="total.label.error.dt.csv")
 
 
