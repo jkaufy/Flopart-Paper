@@ -3,10 +3,12 @@ library(data.table)
 library(dplyr)
 
 
-load(url("https://rcdata.nau.edu/genomic-ml/chip-seq-chunk-db/H3K36me3_AM_immune/10/counts.RData"))
-load(url("https://rcdata.nau.edu/genomic-ml/chip-seq-chunk-db/H3K36me3_AM_immune/10/regions.RData"))
+load(url("https://rcdata.nau.edu/genomic-ml/chip-seq-chunk-db/H3K36me3_AM_immune/1/counts.RData"))
+load(url("https://rcdata.nau.edu/genomic-ml/chip-seq-chunk-db/H3K36me3_AM_immune/1/regions.RData"))
 
 names(counts)[names(counts) == 'coverage'] <- 'count'
+
+regions$annotation <- as.character(regions$annotation)
 
 split.counts <- split(counts, counts$sample.id)
 split.regions <- split(regions, regions$sample.id)
@@ -15,7 +17,7 @@ test.count <- split.counts[["McGill0001"]]
 test.regions <- split.regions[["McGill0001"]]
 
 
-flopart <- FLOPART::FLOPART(test.count, test.regions, 1400)
+flopart <- FLOPART::FLOPART(test.count, test.regions, 0.001)
 
 FLOPART.segs <- flopart[["segments_dt"]]
 FLOPART.peaks <- FLOPART.segs[status == "peak"]

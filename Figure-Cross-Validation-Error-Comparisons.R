@@ -7,9 +7,11 @@ H3K36me_data <- loadH3K36me3DataSetRData()
 
 # increase above 10 log scale
 penalties <- 10^seq(-3, 3, l=20)
+penalties <- 1
 n.fold <- 2
 
 total_label_error_list <- list()
+err_dt_list <- list()
 
 sets <- list("train","test")
 algoritms <- list(Flopart = FLOPART::FLOPART, 
@@ -34,14 +36,14 @@ for(dataset in 1:1){
       
       # for each penalty
       for(pen in penalties){
-        segs.list <- list()
         # for each fold
         for(fold in 1:n.fold){
+          segs.list <- list()
           
           setDT(one_sample_label)
           one_sample_label[, set := ifelse(fold==random.fold, "test", "train")]
           
-          cache.save <- paste(dataset, "-", pen, "-", fold,".RData", sep = "")
+          cache.save <- paste(dataset, "-", sample.id, "-", pen, "-", fold,".RData", sep = "")
           cache.file <- paste(cache.prefix,cache.save, sep = "")
           
           if(file.exists(cache.file)){
@@ -71,19 +73,29 @@ for(dataset in 1:1){
           }
           
           for (set in sets){
-            for (seg in segs.list){
-              err.df <- PeakError::PeakErrorChrom(seg[status=="peak"], 
+            for (model in names(segs.list)){
+              pkg.segs <- segs.list[[model]][, .(chromStart, chromEnd, mean, status)]
+              pkg.peaks <- pkg.segs[status=="peak"]
+              err.df <- PeakError::PeakErrorChrom(pkg.peaks, 
                                                   one_sample_label[set == set])
-              algo = seg$algo[1]
               
-              total_label_error_list[[paste(dataset, sample.id, pen, fold, algo, set)]] <- data.table(
+              err_dt_list[[paste(dataset, sample.id, pen, fold, model, set)]] <- data.table(
                 dataset,
                 sample.id,
                 pen,
                 fold,
-                algo,
+                model,
                 set,
-                errors = sum(err.df$fp) + sum(err.df$fn))
+                err.df)
+              
+              total_label_error_list[[paste(dataset, sample.id, pen, fold, model, set)]] <- data.table(
+                dataset,
+                sample.id,
+                pen,
+                fold,
+                model,
+                set,
+                error = sum(err.df[, 'fp']) + sum(err.df[, 'fn']))
             }
           }
         }
