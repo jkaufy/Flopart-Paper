@@ -37,5 +37,7 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+
+# ignore that large data files
 *_data/H3K36me3/
 /data/H3K36me3/
