@@ -1,3 +1,6 @@
+# need to run Download-All-H3K-Data.R first
+
+
 # Load in all data sets
 library(data.table)
 source("Load-All-H3k-Data.R")
@@ -26,7 +29,7 @@ err_dt <- data.frame(
   stringsAsFactors=FALSE
 )
 
-for(dataset in 1:length(H3K36me_data$count)){
+for(dataset in 1:length(H3K_data$count)){
   print(dataset)
   
   one_count <- H3K_data$count[[dataset]]
