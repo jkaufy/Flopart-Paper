@@ -1,0 +1,129 @@
+library(data.table)
+library(ggplot2)
+
+total.err.list <- readRDS("~/R/Flopart-Paper/cache/cross-validation/err_dt_h3k.Rdata")
+# total.err.dt <- do.call(rbind, total.err.list)
+
+total.label.err.list <- list()
+for(list.index in 1:length(total.err.list)){
+  err.dt <- total.err.list[[list.index]]
+  
+  dataset <- err.dt$dataset[1]
+  sample.id <- err.dt$sample.id[1]
+  pen <- err.dt$pen[1]
+  fold <- err.dt$fold[1]
+  model <- err.dt$model[1]
+  set.i <- err.dt$set.i[1]
+  
+  total.label.err.list[[paste(dataset, sample.id, pen, fold, model, set.i)]] <- data.table(
+    dataset,
+    sample.id,
+    pen,
+    fold,
+    model,
+    set.i,
+    fp = sum(err.dt$fp),
+    fn = sum(err.dt$fn),
+    error= sum(err.dt$fn) + sum(err.dt$fp)
+  )
+}
+
+total.label.err.dt <- do.call(rbind, total.label.err.list)
+
+algo.colors <- c(
+  FPOP = "deepskyblue",
+  FLOPART = "black"
+)
+
+scale.for <- function(algo){
+  scale_fill_gradient(
+    "log10(seqs)",
+    low="white",
+    high=algo.colors[[algo]])
+}  
+
+total.dt <- dcast(
+  data.table(data.frame(total.label.err.dt)),
+  dataset + sample.id + fold + model + pen ~ set.i,
+  value.var="error")
+
+total.dt[, train.test := test+train]
+
+total.min <- total.dt[, .SD[
+  which.min(train.test)], by=.(dataset, sample.id, fold, model)]
+
+total.min.wide <- dcast(
+  total.min,
+  dataset + sample.id + fold ~ model,
+  value.var=c("test", "train", "train.test"))
+
+total.min.wide[, diff := train.test_FPOP-train.test_Flopart]
+
+total.min.wide[, train.test.diff := train.test_FPOP - train.test_Flopart]
+
+
+mytab <- function(dt, col.name){
+  errors <- dt[, .(
+    count=.N,
+    percent=100*.N/nrow(dt)
+  ), by=col.name]
+  is.zero <- errors[[col.name]] == 0
+  is.pos <- errors[[col.name]] > 0
+  is.neg <- errors[[col.name]] < 0
+  pos <- errors[is.pos]
+  neg <- errors[is.neg]
+  sum.wide <- data.table(
+    sum.count=sum(errors$count),
+    zero.count=errors$count[is.zero],
+    pos.count=sum(pos[["count"]]),
+    pos.min=min(pos[[col.name]]),
+    pos.max=max(pos[[col.name]]),
+    neg.count=sum(neg[["count"]]),
+    neg.min=min(neg[[col.name]]),
+    neg.max=max(neg[[col.name]]))
+  sum.tall <- melt(sum.wide, measure.vars=names(sum.wide))
+  sum.tall[grepl("count", variable), percent := 100*value/nrow(dt) ]
+  list(
+    errors=errors,
+    summary=sum.tall)
+}
+
+mytab(total.min.wide, "train_FPOP")
+
+total.min.wide[, test.diff_FPOP := test_FPOP-test_Flopart]
+
+mytab(total.min.wide, "test.diff_FPOP")
+
+train.test.counts <- total.min.wide[, .(
+  splits=.N
+), by=.(train_FPOP, test.diff_FPOP)]
+
+
+gg <- ggplot()+
+  ggtitle("Best case comparison
+with FPOP")+
+  geom_hline(yintercept=0, color="grey")+
+  geom_vline(xintercept=0, color="grey")+
+  geom_tile(aes(
+    train_FPOP, test.diff_FPOP, fill=log10(splits)),
+    alpha=0.8,
+    data=train.test.counts)+
+  geom_text(aes(
+    train_FPOP, test.diff_FPOP, label=splits),
+    data=train.test.counts)+
+  scale.for("FPOP")+
+  coord_equal()+
+  theme_bw()+
+  scale_x_continuous(
+    "FPOP train label errors
+(FLOPART is always=0)")+
+  scale_y_continuous(
+    "Test label error difference
+(FPOP-FLOPART)")
+
+
+pdf("figure-label-errors.pdf", width=8, height=8)
+print(gg)
+dev.off()
+show(gg)
+
