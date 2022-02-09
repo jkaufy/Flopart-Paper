@@ -1,34 +1,11 @@
 library(data.table)
 library(ggplot2)
 
-total.err.list <- readRDS("~/R/Flopart-Paper/cache/cross-validation/err_dt_h3k.Rdata")
-# total.err.dt <- do.call(rbind, total.err.list)
 
-total.label.err.list <- list()
-for(list.index in 1:length(total.err.list)){
-  err.dt <- total.err.list[[list.index]]
-  
-  dataset <- err.dt$dataset[1]
-  sample.id <- err.dt$sample.id[1]
-  pen <- err.dt$pen[1]
-  fold <- err.dt$fold[1]
-  model <- err.dt$model[1]
-  set.i <- err.dt$set.i[1]
-  
-  total.label.err.list[[paste(dataset, sample.id, pen, fold, model, set.i)]] <- data.table(
-    dataset,
-    sample.id,
-    pen,
-    fold,
-    model,
-    set.i,
-    fp = sum(err.dt$fp),
-    fn = sum(err.dt$fn),
-    error= sum(err.dt$fn) + sum(err.dt$fp)
-  )
-}
+err.dt <- data.table(csv=Sys.glob("figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+err.dt <- err.dt[order(dataset, sample.id, fold, pen)]
+err.dt[, errors := fp + fn]
 
-total.label.err.dt <- do.call(rbind, total.label.err.list)
 
 algo.colors <- c(
   FPOP = "deepskyblue",
@@ -43,9 +20,9 @@ scale.for <- function(algo){
 }  
 
 total.dt <- dcast(
-  data.table(data.frame(total.label.err.dt)),
+  data.table(data.frame(err.dt)),
   dataset + sample.id + fold + model + pen ~ set.i,
-  value.var="error")
+  value.var="errors")
 
 total.dt[, train.test := test+train]
 
