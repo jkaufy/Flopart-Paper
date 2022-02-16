@@ -14,6 +14,7 @@ algoritms <- list(Flopart = FLOPART::FLOPART,
     FPOP =  PeakSegOptimal::PeakSegFPOPchrom)
 
 cache.prefix <- "figure-label-errors-data"
+feature.list <- list()
 
 for(dataset in 1:length(H3K_data$count)){
   print(dataset)
@@ -31,9 +32,22 @@ for(dataset in 1:length(H3K_data$count)){
       cache.save <- paste(dataset, "-", sample.id, ".csv", sep = "")
       cache.file <- file.path(cache.prefix, cache.save)
       
+      one_sample_count <- sample_split_count[[sample.id]]
+      
+      feature.list[[paste(dataset, sample.id)]] <- data.table(
+        dataset,
+        sample.id,
+        log.log.data=log(log(nrow(one_sample_count)))
+      )
+      
       if(!file.exists(cache.file)){
-        one_sample_count <- sample_split_count[[sample.id]]
         one_sample_label <- sample_split_label[[sample.id]]
+        
+        feature.list[[paste(dataset, sample.id)]] <- data.table(
+          dataset,
+          sample.id,
+          log.log.data=log(log(nrow(one_sample_count)))
+        )
         
         # for each penalty
         for(pen in penalties){
@@ -75,8 +89,11 @@ for(dataset in 1:length(H3K_data$count)){
                   fold,
                   model,
                   set.i,
+                  possible.fp = sum(err.dt$possible.fp),
                   fp = sum(err.dt$fp),
-                  fn = sum(err.dt$fn)
+                  possible.fn = sum(err.dt$possible.fn),
+                  fn = sum(err.dt$fn),
+                  labels = nrow(one_sample_label[set == set.i])
                 )
               }
               
@@ -92,4 +109,7 @@ for(dataset in 1:length(H3K_data$count)){
     }
   }
 }
+
+feature.dt <- do.call(rbind, feature.list)
+data.table::fwrite(feature.dt, "feature-dt.csv")
 

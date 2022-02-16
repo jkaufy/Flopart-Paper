@@ -15,9 +15,11 @@ split.regions <- split(regions, regions$sample.id)
 
 test.count <- split.counts[["McGill0001"]]
 test.regions <- split.regions[["McGill0001"]]
+colnames(test.regions)
 
 
 flopart <- FLOPART::FLOPART(test.count, test.regions, 0.001)
+
 
 FLOPART.segs <- flopart[["segments_dt"]]
 FLOPART.peaks <- FLOPART.segs[status == "peak"]

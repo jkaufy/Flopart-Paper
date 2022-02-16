@@ -104,3 +104,63 @@ print(gg)
 dev.off()
 show(gg)
 
+
+# choosing pen which minimizes train first, then train second
+total.dt <- total.dt[order(dataset, sample.id, model, fold, train,test)]
+rank <- total.dt[, rank := order(train,test), by=.(dataset, sample.id, model, fold)]
+
+total.min <- rank[, .SD[
+  which.min(rank)], by=.(dataset, sample.id, fold, model)]
+
+total.min.wide <- dcast(
+  total.min,
+  dataset + sample.id + fold ~ model,
+  value.var=c("test", "train", "train.test"))
+
+total.min.wide[, diff := train.test_FPOP-train.test_Flopart]
+
+total.min.wide[, train.test.diff := train.test_FPOP - train.test_Flopart]
+
+mytab(total.min.wide, "train_FPOP")
+
+total.min.wide[, test.diff_FPOP := test_FPOP-test_Flopart]
+
+mytab(total.min.wide, "test.diff_FPOP")
+
+train.test.counts <- total.min.wide[, .(
+  splits=.N
+), by=.(train_FPOP, test.diff_FPOP)]
+
+
+gg <- ggplot()+
+  ggtitle("Best case comparison
+with FPOP")+
+  geom_hline(yintercept=0, color="grey")+
+  geom_vline(xintercept=0, color="grey")+
+  geom_tile(aes(
+    train_FPOP, test.diff_FPOP, fill=log10(splits)),
+    alpha=0.8,
+    data=train.test.counts)+
+  geom_text(aes(
+    train_FPOP, test.diff_FPOP, label=splits),
+    data=train.test.counts)+
+  scale.for("FPOP")+
+  coord_equal()+
+  theme_bw()+
+  scale_x_continuous(
+    "FPOP train label errors
+(FLOPART is always=0)")+
+  scale_y_continuous(
+    "Test label error difference
+(FPOP-FLOPART)")
+
+
+pdf("figure-label-errors-min-train.pdf", width=8, height=8)
+print(gg)
+dev.off()
+show(gg)
+
+
+
+
+
