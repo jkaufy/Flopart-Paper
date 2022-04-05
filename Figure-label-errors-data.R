@@ -34,20 +34,18 @@ for(dataset in 1:length(H3K_data$count)){
       
       one_sample_count <- sample_split_count[[sample.id]]
       
+      bases <- one_sample_count[nrow(one_sample_count), ]$chromEnd - 
+        one_sample_count[1,]$chromStart
+      
       feature.list[[paste(dataset, sample.id)]] <- data.table(
         dataset,
         sample.id,
-        log.log.data=log(log(nrow(one_sample_count)))
+        size = bases,
+        log.log.data=log(log(bases))
       )
       
       if(!file.exists(cache.file)){
         one_sample_label <- sample_split_label[[sample.id]]
-        
-        feature.list[[paste(dataset, sample.id)]] <- data.table(
-          dataset,
-          sample.id,
-          log.log.data=log(log(nrow(one_sample_count)))
-        )
         
         # for each penalty
         for(pen in penalties){
@@ -91,7 +89,7 @@ for(dataset in 1:length(H3K_data$count)){
                   set.i,
                   possible.fp = sum(err.dt$possible.fp),
                   fp = sum(err.dt$fp),
-                  possible.fn = sum(err.dt$possible.fn),
+                  possible.fn = sum(err.dt$possible.tp),
                   fn = sum(err.dt$fn),
                   labels = nrow(one_sample_label[set == set.i])
                 )

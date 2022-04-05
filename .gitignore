@@ -30,6 +30,8 @@ vignettes/*.pdf
 # knitr and R markdown default cache directories
 *_cache/
 /cache/
+figure-label-cache-count/
+sim-figure-timing-data/
 
 # Temporary files created by R markdown
 *.utf8.md
@@ -39,5 +41,14 @@ vignettes/*.pdf
 .Renviron
 
 # ignore that large data files
-*_data/H3K36me3/
-/data/H3K36me3/
+Binseg-figure-label-errors-data/
+figure-label-errors-data/
+H3k/
+
+# testing files
+binary-segmenatation-example.r
+
+# ignore temp files
+.RDataTmp1
+.RDataTmp
+.DS_Store

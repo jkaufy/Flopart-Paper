@@ -2,41 +2,45 @@ library(data.table)
 library(ggplot2)
 
 err.dt <- data.table(csv=Sys.glob("figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+binseg_err.dt <- data.table(csv=Sys.glob("Binseg-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+
+err.dt <- rbind(err.dt, binseg_err.dt)
 err.dt <- err.dt[order(dataset, sample.id, fold, pen)]
 err.dt[, errors := fp + fn]
 err.dt[, sequenceID := paste(dataset,"-", sample.id, sep = "")]
 
-poss.fn <- err.dt[, .SD[which.max(fn)], by=.(dataset, sample.id, fold)]$fn
-err.dt[, possible.fn := rep(poss.fn,each=84)]
-
+# poss.fn <- err.dt[, .SD[which.max(fn)], by=.(dataset, sample.id, fold)]$fn
+# err.dt[, possible.fn := rep(poss.fn,each=84)]
 
 err.dt[model=="Flopart" & set.i=="train", table(errors)]
 err.dt[model=="Flopart" & set.i=="train" & 0<errors, .(
   csv, fold, set.i, pen, fp, fn)]
-err.dt[, log.penalty := log(pen)]
 
+err.dt[, log.penalty := log(pen)]
 err.dt[, min.log.lambda := log.penalty + c(
   -Inf, -diff(log.penalty)/2
 ), by=.(
-  model, fold, set.i, sample.id, dataset)]
+  model, fold, set.i, sequenceID)]
 
 err.dt[, max.log.lambda := c(
   min.log.lambda[-1], Inf
 ), by=.(
-  model, fold, set.i, sample.id, dataset)]
+  model, fold, set.i, sequenceID)]
 
 err.test <- err.dt[set.i=="test"]
 
 feature.dt <- data.table::fread(
   "feature-dt.csv"
 )
+
 feature.dt[, sequenceID := paste(dataset,"-", sample.id, sep = "")]
 feature.mat <- feature.dt[, matrix(
   log.log.data,
   ncol=1,
   dimnames=list(sequenceID=sequenceID, feature="log.log.data"))]
 
-err.train <- err.dt[set.i=="train" & model == "FPOP"]
+
+err.train <- err.dt[set.i=="train" & model %in% c("FPOP", "BINSEG")]
 
 pred.dt <- err.train[, {
   best.penalty <- .SD[, .(
@@ -50,7 +54,6 @@ pred.dt <- err.train[, {
   keep <- -Inf < target.mat[, 1] | target.mat[,2] < Inf
   fit <- penaltyLearning::IntervalRegressionUnregularized(
     feature.mat[keep, , drop=FALSE], target.mat[keep, ])
-  print(fit)
   rbind(
     data.table(
       sequenceID=rownames(feature.mat),
@@ -69,10 +72,12 @@ pred.dt <- err.train[, {
       pred.log.lambda=as.numeric(fit$predict(feature.mat))))
 }, by=.(model, fold)]
 
+# pred.dt[sequenceID == 1-McGill0001]
+
 auc.dt <- err.test[, {
   select.dt <- data.table(
     fold,
-    model = "FPOP")
+    model = if(model == "BINSEG")"BINSEG" else "FPOP")
   pred.fold <- pred.dt[select.dt, on=names(select.dt)]
   model.dt <- .SD[order(sequenceID, min.log.lambda)]
   pred.fold[, {
@@ -86,32 +91,28 @@ auc.dt <- err.test[, {
   }, by=.(Penalty, Parameters)]
 }, by=.(fold, model)]
 
+
 roc.dt <- auc.dt[, data.table(
   roc[[1]]
 ), by=.(fold, model, Penalty, Parameters)]
 possible.dt <- unique(auc.dt[, .(
   fold, possible.fp, possible.fn)])
-pred.point.dt <- rbind(
-  auc.dt[model=="FLOPART", data.table(
-    FPR=0, TPR=0, fp=0, tp=0, auc=NA, labels,
-    model="FPOP", fold, Penalty, Parameters
-  )],
-  auc.dt[, .(
-    FPR, TPR, fp, tp, auc, labels,
-    model, fold, Penalty, Parameters
-  )]
-)[possible.dt, on=.(fold)]
-
-
+pred.point.dt <- 
+    auc.dt[, .(
+      FPR, TPR, fp, tp, auc, labels,
+      model, fold, Penalty, Parameters
+    )][possible.dt, on=.(fold)]
 
 algo.colors <- c(
-  FPOP="blue",
-  FLOPART="#ECAE5E")
+  FPOP = "blue",
+  FLOPART = "grey50",
+  BINSEG = "#ECAE5E" )
 
 gg <- ggplot()+
   theme_bw()+
   scale_color_manual(values=algo.colors)+
   scale_size_manual(values=c(
+    BINSEG=1.25,
     FPOP=1.25,
     Flopart=1.5))+
   directlabels::geom_dl(aes(
@@ -132,7 +133,7 @@ gg <- ggplot()+
     color=model,
     size=model,
     group=paste(model, fold)),
-    alpha=0.7,
+    alpha=0.5,
     data=roc.dt)+
   geom_point(aes(
     FPR, TPR,
@@ -156,11 +157,13 @@ gg <- ggplot()+
     "True Positive Rate (test set labels)",
     breaks=c(0, 0.5, 1),
     labels=c("0", "0.5", "1"))
-#print(gg)
+
+
+print(gg)
 expansion <- 2
 pdf("figure-cv-BIC-roc.pdf", width=3*expansion, height=2*expansion)
-print(gg)
 dev.off()
+show(gg)
 
 auc.wide <- dcast(
   auc.dt,
@@ -183,17 +186,17 @@ pred.point.diff <- dcast(
   value.var="value")
 pred.point.compare <- melt(
   pred.point.diff,
-  measure.vars="FPOP",
+  measure.vars=c("FPOP", "BINSEG"),
   variable.name="baseline")
 pred.point.compare[, improvement := Flopart - value]
 pred.point.compare[, .(
   min=min(improvement),
   max=max(improvement)
 ), by=.(baseline, variable)]
-pred.point.diff[, FPOP.diff := Flopart - Flopart ]
-
+pred.point.diff[, FPOP.diff := Flopart - FPOP ]
+pred.point.diff[, BINSEG.diff := Flopart - BINSEG ]
 pred.point.diff[order(variable, Penalty.Params, fold), .(
-  variable, fold, Penalty.Params, FPOP.diff)]
+  variable, fold, Penalty.Params, FPOP.diff, BINSEG.diff)]
 
 
 gg.vars <- ggplot()+
@@ -218,7 +221,7 @@ pred.point.wide <- dcast(
   value.var="percent.error")
 pred.point.tall <- melt(
   pred.point.wide,
-  measure.vars="FPOP",
+  measure.vars=c("FPOP", "BINSEG"),
   variable.name="competitor",
   value.name="percent.error")
 gg.comp <- ggplot()+
@@ -227,7 +230,7 @@ gg.comp <- ggplot()+
   facet_grid(. ~ competitor)+
   geom_abline(aes(
     slope=slope, intercept=intercept),
-    color="grey",
+    color="grey50",
     data=data.table(slope=1, intercept=0))+
   geom_point(aes(
     Flopart, percent.error, color=Penalty.Params),
@@ -239,7 +242,7 @@ gg <- ggplot()+
     legend.position="bottom",
     panel.spacing=grid::unit(0, "lines"))+
   geom_point(aes(
-    percent.accuracy, Penalty.Params, color=model),
+    percent.accuracy, Penalty.Params, color = model),
     shape=18,
     size=4,
     data=pred.point.dt)+
@@ -256,3 +259,7 @@ gg <- ggplot()+
 pdf("figure-cv-BIC.pdf", width=6, height=1.8)
 show(gg)
 dev.off()
+print(gg)
+
+
+
