@@ -21,8 +21,6 @@ maxJumpRule <- function (seg.dt, count.dt){
   {
     group.dt <- data.table( mean = numeric(), chromStart=numeric(), chromEnd=numeric(), status=character())
   }
-
-
 }
 
 source("Load-All-H3k-Data.R")
@@ -30,22 +28,16 @@ source("Load-All-H3k-Data.R")
 H3K_data <- loadH3KData()
 
 # increase above 10 log scale
-penalties <- 10^seq(-5, 5, by=0.5)
-grid.dt <- data.table(penalty=penalties)
-grid.dt[, penalty0 := penalty]
+penalties <- 10^seq(5, 6, by=0.5)
 n.fold <- 2
+model <- "LOPART"
 
 sets <- list("train","test")
-model <- "BINSEG"
 
-cache.prefix <- "New-Binseg-figure-label-errors-data"
-cache.count <- "figure-label-cache-count"
+cache.prefix <- "wider-LOPART-figure-label-errors-data"
 
-feature.list <- list()
-# length(H3K_data$count)
 for(dataset in 1:length(H3K_data$count)){
   print(dataset)
-  
   one_count <- H3K_data$count[[dataset]]
   one_label <- H3K_data$labels[[dataset]]
   
@@ -54,57 +46,43 @@ for(dataset in 1:length(H3K_data$count)){
   
   if (!('peaks' %in% one_label$annotation)){
     for (sample.id in names(sample_split_count)){
+      
       sample.err.list <- list()
       
       cache.save <- paste(dataset, "-", sample.id, ".csv", sep = "")
       cache.file <- file.path(cache.prefix, cache.save)
-      cache.c.file <- file.path(cache.count, cache.save)
       
       one_sample_count <- sample_split_count[[sample.id]]
       
       if(!file.exists(cache.file)){
         print(sample.id)
-        
         one_sample_label <- sample_split_label[[sample.id]]
         
-        setDT(one_sample_count)
-        one_sample_count[, weight.vec := chromEnd-chromStart]
-        
-        # dir.create(dirname(cache.c.file), showWarnings = FALSE, recursive = TRUE)
-        # data.table::fwrite(one_sample_count, cache.c.file)
-        
-        fit <- binsegRcpp::binseg('poisson', one_sample_count$count, 
-                             weight.vec = one_sample_count$weight.vec)
-        
-        
-        modelSelection.dt <- data.table(penaltyLearning::modelSelection(
-          fit$splits, "loss", "segments"))[, .(min.lambda, max.lambda, segments)]
-        
-        setkey(grid.dt, penalty, penalty0)
-        setkey(modelSelection.dt, min.lambda, max.lambda)
-        pen.dt <- foverlaps(grid.dt, modelSelection.dt)
-        
-        for (pens in 1:nrow(pen.dt)){
-          pen <- pen.dt$penalty[pens]
-          max.peaks <- pen.dt$segments[pens]
-          
-          toMaxJump <- coef(fit, max.peaks)
-          
-          seg.dt <- maxJumpRule(toMaxJump, one_sample_count)
-          
-          pkg.segs <- seg.dt[, .(chromStart, chromEnd, mean, status)]
-          pkg.peaks <- pkg.segs[status=="peak"]
+        # for each penalty
+        for(pen in penalties){
+          # for each fold
+          for(fold in 1:n.fold){
+            segs.list <- list()
+            
+            setDT(one_sample_count)
+            one_sample_count[, weight.vec := chromEnd-chromStart]
 
-          for (fold in 1:n.fold){
-            
             setDT(one_sample_label)
-            one_sample_label[, set := ifelse(fold==random.fold, "test", "train")]
+            one_sample_label[, set := ifelse(fold == random.fold, "test", "train")]
+            one_sample_label[, changes := ifelse(annotation == "noPeaks", 0, 1)]
             
-            for (set.i in sets) {
-              
-              err.dt <- PeakError::PeakErrorChrom(pkg.peaks, 
-                                                  one_sample_label[set == set.i])
-              
+            lopart_labels <- FLOPART::FLOPART_data(one_sample_count, one_sample_label)$label_dt
+            
+            one_sample_label[, start := lopart_labels$firstRow]
+            one_sample_label[, end := ifelse(lopart_labels$lastRow < nrow(one_sample_count),lopart_labels$lastRow , nrow(one_sample_count))]
+            
+            fit <- LOPART::POISSON_LOPART(one_sample_count$count,one_sample_count$weight.vec, one_sample_label[set == "train"], pen)
+            
+            seg.dt <- maxJumpRule(data.table(fit$segments), one_sample_count)
+            pkg.segs <- seg.dt[, .(chromStart, chromEnd, mean, status)]
+            pkg.peaks <- pkg.segs[status=="peak"]
+            for (set.i in sets){  
+              err.dt <- PeakError::PeakErrorChrom(pkg.peaks, one_sample_label[set == set.i])      
               sample.err.list[[paste(dataset, sample.id, pen, fold, model, set.i)]] <- data.table(
                 dataset,
                 sample.id,
@@ -117,20 +95,17 @@ for(dataset in 1:length(H3K_data$count)){
                 possible.fn = sum(err.dt$possible.tp),
                 fn = sum(err.dt$fn),
                 labels = nrow(one_sample_label[set == set.i])
-              )
-              
+                )
             }
           }
-          
         }
-        
         sample.err.dt <- do.call(rbind, sample.err.list)
         dir.create(dirname(cache.file), showWarnings = FALSE, recursive = TRUE)
         data.table::fwrite(sample.err.dt, cache.file)
-        
+        gc()
       }
     }
   }
 }
-  
+
 

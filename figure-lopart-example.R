@@ -1,28 +1,65 @@
 library(ggplot2)
 library(data.table)
 library(dplyr)
+
+library(data.table)
 source("Load-All-H3k-Data.R")
+
+maxJumpRule <- function (seg.dt, count.dt){
+  seg.dt[, diff := c(diff(mean),NA)]
+  seg.dt[, sign := sign(diff)]
+  seg.dt[, new.group := c(TRUE,diff(sign) != 0)]
+  seg.dt[, group.i := cumsum(new.group)]
+  group.dt <- seg.dt[, .SD[which.max(abs(diff)), .(end, diff, sign, mean)], by=group.i]
+  
+  chromEnd.at.change <- count.dt$chromEnd[group.dt$end]
+  
+  group.dt[, .(mean = c(mean,1),
+    chromStart=c(count.dt$chromStart[1], chromEnd.at.change),
+    chromEnd=c(chromEnd.at.change, count.dt[.N, chromEnd]),
+    status=rep(if(sign[1]==1)c("background","peak") else c("peak","background"), l=.N+1)
+  )]
+}
 
 H3K_data <- loadH3KData()
 
-counts <- H3K_data$count[[1]]
-regions <- H3K_data$labels[[1]]
+pen <- 50
+dataset <- 1
+counts <- H3K_data$count[[dataset]]
+regions <- H3K_data$labels[[dataset]]
+
+sampleid <- "McGill0001"
 
 split.counts <- split(counts, counts$sample.id)
 split.regions <- split(regions, regions$sample.id)
 
-test.count <- split.counts[["McGill0004"]]
-test.regions <- split.regions[["McGill0004"]]
+test.count <- split.counts[[sampleid]]
+test.regions <- split.regions[[sampleid]]
+
 colnames(test.regions)
 
 
-flopart <- FLOPART::FLOPART(test.count, head(test.regions, 1L), 2.341605)
+flopart <- FLOPART::FLOPART(test.count, test.regions, pen)
 
+setDT(test.count)
+test.count[, weight.vec := chromEnd-chromStart]
+
+setDT(test.regions)
+test.regions[, changes := ifelse(annotation=="noPeaks", 0, 1)]
+
+lopart_labels <- FLOPART::FLOPART_data(test.count, test.regions)$label_dt
+
+test.regions[, start := lopart_labels$firstRow]
+test.regions[, end := lopart_labels$lastRow]
+
+
+
+fit <- LOPART::POISSON_LOPART(test.count$count,test.count$weight.vec, 
+                      test.regions, pen)
+
+lopart.segs <- maxJumpRule(data.table(fit$segments), test.count)
 
 FLOPART.segs <- flopart[["segments_dt"]]
-FLOPART.peaks <- FLOPART.segs[status == "peak"]
-
-PeakError::PeakErrorChrom(FLOPART.peaks, test.regions)
 
 model.color <- "blue"
 peak.y <- -2
@@ -32,38 +69,11 @@ ann.colors <- c(
   peakStart="#efafaf",
   peakEnd="#ff4c4c")
 
-ggplot()+
-  geom_rect(aes(
-    xmin=chromStart, xmax=chromEnd,
-    fill=annotation,
-    ymin=-Inf, ymax=Inf),
-    data=test.regions,
-    color="grey",
-    alpha=0.5)+
-  theme_bw()+
-  scale_fill_manual(values=ann.colors)+
-  geom_step(aes(
-    chromStart, count),
-    color="grey50",
-    data=test.count)+
-  geom_step(aes(
-    chromStart, mean),
-    color=model.color,
-    data=FLOPART.segs)+
-  geom_point(aes(
-    chromEnd, peak.y),
-    color=model.color,
-    shape=21,
-    data=FLOPART.peaks)
-
-max.peaks <- 7L
-fit <- PeakSegOptimal::PeakSegPDPAchrom(test.count, max.peaks)
-seg.dt <- data.table(fit$segments)
 seg.dt.list <- list(
-  FLOPART=FLOPART.segs)
-for(show.peaks in 5:max.peaks){
-  seg.dt.list[[paste(show.peaks, "peaks")]] <- seg.dt[peaks==show.peaks]
-}
+  FLOPART=FLOPART.segs,
+  LOPART=lopart.segs)
+
+
 err.dt.list <- list()
 model.segs.list <- list()
 for(model in names(seg.dt.list)){
@@ -76,8 +86,11 @@ for(model in names(seg.dt.list)){
 err.dt <- do.call(rbind, err.dt.list)
 model.segs <- do.call(rbind, model.segs.list)
 
-
 model.peaks <- model.segs[status=="peak"]
+
+fit.segs <- fit$segments
+fit.segs[, chromStart := test.count$chromStart[start]]
+fit.segs[, chromEnd := test.count$chromEnd[end]]
 
 gg <- ggplot()+
   theme_bw()+
@@ -105,17 +118,13 @@ gg <- ggplot()+
       correct=0,
       "false negative"=3,
       "false positive"=1))+
-  geom_step(aes(
-    chromStart, count),
+  geom_point(aes(
+    chromEnd, count),
     color="grey50",
     data=test.count)+
-  geom_step(aes(
-    chromStart, mean),
-    color=model.color,
-    data=model.segs)+
   geom_segment(aes(
-    chromStart, mean,
-    xend=chromEnd, yend=mean),
+    chromStart+0.5, mean,
+    xend=chromEnd+0.5, yend=mean),
     color=model.color,
     data=model.segs)+
   geom_point(aes(
@@ -124,15 +133,15 @@ gg <- ggplot()+
     shape=1,
     color=model.color)+
   geom_segment(aes(
-    chromStart, peak.y,
-    xend=chromEnd, yend=peak.y),
+    chromStart+0.5, peak.y,
+    xend=chromEnd+0.5, yend=peak.y),
     data=model.peaks,
     color=model.color,
     size=2)+
   scale_y_continuous("Count of aligned DNA sequence reads")+
   scale_x_continuous("Position on chromosome (bases)")
 gg
-out.png <- "Figure-H3K36me3-Smaller-Example.png"
+out.png <- "Figure-Lopart-Example.png"
 png(out.png, 10, 5, units="in", res=200)
 print(gg)
 dev.off

@@ -134,7 +134,7 @@ showOptimalPath <- function(possible.edges, segs.dt) {
   
   pathing <- possible.edges$optimal
   pathing[is.na(pathing)] <- "Possible"
-  possible.edges$optimal <- pathing
+  possible.edges$path <- pathing
   
   return(possible.edges)
 }
@@ -142,7 +142,7 @@ showOptimalPath <- function(possible.edges, segs.dt) {
 addLast <- function(seg.dt){
   
   last <- seg.dt[nrow(seg.dt)]
-  last[, chromStart := chromEnd+0.5]
+  last[, chromStart := chromEnd+1]
   seg.dt <- rbind(seg.dt, last)
   
   return (seg.dt)
@@ -152,27 +152,30 @@ flopart.edges = showPossibleLabelPaths(edge.dt, labels)
 flopart.optimal = showOptimalPath(flopart.edges, FLOPART.segs)
 FPOP.optimal = showOptimalPath(edge.dt, seg.dt)
 
-FLOPART.segs <- addLast(FLOPART.segs)
-FPOP.segs <- addLast(seg.dt)
-
 seg.dt.list <- list(
   FLOPART=FLOPART.segs,
-  FPOP= FPOP.segs)
+  GFPOP= seg.dt)
 
 node.dt.list <- list(
   FLOPART=flopart.optimal,
-  FPOP= FPOP.optimal
+  GFPOP= FPOP.optimal
 )
 
 model.segs.list = list()
 model.node.list = list()
-for(model in names(seg.dt.list)){
-  pkg.segs <- seg.dt.list[[model]][, .(chromStart, chromEnd, mean, status)]
-  model.segs.list[[model]] <- data.table(model, pkg.segs)
-  model.node <- node.dt.list[[model]]
-  model.node.list[[model]] <- data.table(model, model.node)
+err.dt.list <- list()
+for(algortihm in names(seg.dt.list)){
+  pkg.segs <- seg.dt.list[[algortihm]][, .(chromStart, chromEnd, mean, status)]
+  model.node <- node.dt.list[[algortihm]]
+  model.node.list[[algortihm]] <- data.table(algortihm, model.node)
+  pkg.peaks <- pkg.segs[status=="peak"]
+  err.df <- PeakError::PeakErrorChrom(pkg.peaks, labels)
+  err.dt.list[[algortihm]] <- data.table(algortihm, err.df)
+  pkg.segs <- addLast(pkg.segs)
+  model.segs.list[[algortihm]] <- data.table(algortihm, pkg.segs)
 }
 
+err.dt <- do.call(rbind, err.dt.list)
 model.segs <- do.call(rbind, model.segs.list)
 model.nodes <- do.call(rbind, model.node.list)
 
@@ -180,10 +183,11 @@ line.colors <- c(
   Optimal = "blue",
   Possible = "grey50"
 )
+
 model.color <- "blue"
 
-ggplot()+
-  facet_grid(model ~ ., labeller=label_both)+
+gg <- ggplot()+
+  facet_grid(algortihm ~ ., labeller=label_both)+
   geom_rect(aes(
     xmin=chromStart, xmax=chromEnd,
     fill=annotation,
@@ -193,11 +197,28 @@ ggplot()+
     alpha=0.5)+
   theme_bw()+
   scale_fill_manual(values=ann.colors)+
+  scale_y_continuous("Count of aligned DNA sequence reads")+
+  scale_x_continuous("Position on chromosome (bases)")+
+  geom_rect(aes(
+    xmin=chromStart, xmax=chromEnd,
+    ymin=-Inf, ymax=Inf,
+    linetype=status),
+    color="black",
+    fill=NA,
+    size=1,
+    data=err.dt)+
+  scale_linetype_manual(
+    "error type",
+    values=c(
+      correct=0,
+      "false negative"=3,
+      "false positive"=1))+
   geom_point(aes(
-    chromStart, count),
+    chromEnd, count),
     color="grey50",
     fill="white",
-    data=counts)+
+    data=counts,
+    size = .5)+
   geom_step(aes(
     chromStart-0.5, mean),
     color=model.color,
@@ -205,21 +226,21 @@ ggplot()+
   geom_point(aes(
     data.num, state),
     shape=21,
-    size=4,
+    size=1,
     data = node.dt,
     fill="white",
     color="black")+
   scale_color_manual(values=line.colors)+
   geom_segment(aes(
     data.num, state,
-    linetype=type,
-    xend=next.num-0.1, yend=i.state+ifelse(i.state!=state, -i.state*0.1, 0), color = optimal),
-    arrow=grid::arrow(length=unit(0.1, "in"), type="closed"),
-    data=model.nodes)+
-  theme(legend.key.size = unit(1, 'cm'), #change legend key size
-        legend.title = element_text(size=12), #change legend title font size
-        legend.text = element_text(size=8)) #change legend text font size
+    xend=next.num-0.2, yend=i.state+ifelse(i.state!=state, -i.state*0.4, 0), color = path),
+    arrow=grid::arrow(length=unit(0.05, "in"), type="open"),
+    size = 0.3,
+    data=model.nodes) + theme(text = element_text(size = 10))  
 
+pdf("figure-computation-graph.pdf", width=8, height=3.5)
+print(gg)
+dev.off()
 
 
 

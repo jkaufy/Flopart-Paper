@@ -101,10 +101,8 @@ with BINSEG")+
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
-(BINSEG-FLOPART)")
-
-
-pdf("Binseg-figure-label-errors.pdf", width=8, height=8)
+(BINSEG-FLOPART)") + theme(text = element_text(size = 14)) 
+pdf("Binseg-figure-label-errors.pdf", width=4, height=4)
 print(gg)
 dev.off()
 show(gg)
@@ -157,7 +155,8 @@ with BINSEG")+
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
-(BINSEG-FLOPART)")
+(BINSEG-FLOPART)")+ 
+  theme(text = element_text(size = 25)) 
 
 
 pdf("Binseg-figure-label-errors-min-train.pdf", width=8, height=8)

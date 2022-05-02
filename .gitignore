@@ -42,7 +42,10 @@ sim-figure-timing-data/
 
 # ignore that large data files
 Binseg-figure-label-errors-data/
+LOPART-figure-label-errors-data/
 figure-label-errors-data/
+wider-figure-label-errors-data/
+wider-LOPART-figure-label-errors-data/
 H3k/
 
 # testing files

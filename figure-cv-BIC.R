@@ -3,18 +3,12 @@ library(ggplot2)
 
 err.dt <- data.table(csv=Sys.glob("figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
 binseg_err.dt <- data.table(csv=Sys.glob("Binseg-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+lopart_err.dt <- data.table(csv=Sys.glob("LOPART-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
 
-err.dt <- rbind(err.dt, binseg_err.dt)
+err.dt <- rbind(err.dt, binseg_err.dt, lopart_err.dt)
 err.dt <- err.dt[order(dataset, sample.id, fold, pen)]
 err.dt[, errors := fp + fn]
 err.dt[, sequenceID := paste(dataset,"-", sample.id, sep = "")]
-
-# poss.fn <- err.dt[, .SD[which.max(fn)], by=.(dataset, sample.id, fold)]$fn
-# err.dt[, possible.fn := rep(poss.fn,each=84)]
-
-err.dt[model=="Flopart" & set.i=="train", table(errors)]
-err.dt[model=="Flopart" & set.i=="train" & 0<errors, .(
-  csv, fold, set.i, pen, fp, fn)]
 
 err.dt[, log.penalty := log(pen)]
 err.dt[, min.log.lambda := log.penalty + c(
@@ -39,8 +33,7 @@ feature.mat <- feature.dt[, matrix(
   ncol=1,
   dimnames=list(sequenceID=sequenceID, feature="log.log.data"))]
 
-
-err.train <- err.dt[set.i=="train" & model %in% c("FPOP", "BINSEG")]
+err.train <- err.dt[set.i=="train" & model %in% c("FPOP", "BINSEG", "LOPART")]
 
 pred.dt <- err.train[, {
   best.penalty <- .SD[, .(
@@ -69,15 +62,12 @@ pred.dt <- err.train[, {
       sequenceID=rownames(feature.mat),
       Penalty="linear",
       Parameters=2,
-      pred.log.lambda=as.numeric(fit$predict(feature.mat))))
-}, by=.(model, fold)]
-
-# pred.dt[sequenceID == 1-McGill0001]
+      pred.log.lambda=as.numeric(fit$predict(feature.mat))))}, by=.(model, fold)]
 
 auc.dt <- err.test[, {
   select.dt <- data.table(
     fold,
-    model = if(model == "BINSEG")"BINSEG" else "FPOP")
+    model = if(model == "BINSEG")"BINSEG"  else if (model == "LOPART") "LOPART" else "FPOP")
   pred.fold <- pred.dt[select.dt, on=names(select.dt)]
   model.dt <- .SD[order(sequenceID, min.log.lambda)]
   pred.fold[, {
@@ -102,11 +92,16 @@ pred.point.dt <-
       FPR, TPR, fp, tp, auc, labels,
       model, fold, Penalty, Parameters
     )][possible.dt, on=.(fold)]
+  
+pred.point.dt[, label := paste0(model, ifelse(is.na(auc), "", sprintf(" AUC = %.3f", auc)))]
+pred.point.dt[, label.x := rep(.9, .N)]
+pred.point.dt[, label.y := rep(c(0.8,0.75,0.7, 0.65), each = 3, 2)]
 
 algo.colors <- c(
   FPOP = "blue",
   FLOPART = "grey50",
-  BINSEG = "#ECAE5E" )
+  BINSEG = "#ECAE5E",
+  LOPART = "red")
 
 gg <- ggplot()+
   theme_bw()+
@@ -114,19 +109,13 @@ gg <- ggplot()+
   scale_size_manual(values=c(
     BINSEG=1.25,
     FPOP=1.25,
+    LOPART=1.25,
     Flopart=1.5))+
-  directlabels::geom_dl(aes(
-    FPR, TPR,
+  geom_text((aes(
+    x = label.x, y = label.y,
     color=model,
-    label=paste0(model, ifelse(is.na(auc), "", sprintf(
-      " AUC=%.3f", auc
-    )))),
-    method=list(
-      cex=0.75,
-      directlabels::polygon.method(
-        "right",
-        offset.cm=0.5,
-        padding.cm=0.05)),
+    label= label)),
+    size = 3,
     data=pred.point.dt)+
   geom_path(aes(
     FPR, TPR,
@@ -155,15 +144,14 @@ gg <- ggplot()+
     labels=c("0", "0.5", "1"))+
   scale_y_continuous(
     "True Positive Rate (test set labels)",
-    breaks=c(0, 0.5, 1),
-    labels=c("0", "0.5", "1"))
+    limits=c(0.5, 1),
+    breaks=c(0.5, 1),
+    labels=c("0.5", "1"))
 
-
-print(gg)
 expansion <- 2
-pdf("figure-cv-BIC-roc.pdf", width=3*expansion, height=2*expansion)
+pdf("figure-cv-BIC-roc.pdf", width=4.5*expansion, height=2.5*expansion)
+print(gg)
 dev.off()
-show(gg)
 
 auc.wide <- dcast(
   auc.dt,
@@ -198,6 +186,8 @@ pred.point.diff[, BINSEG.diff := Flopart - BINSEG ]
 pred.point.diff[order(variable, Penalty.Params, fold), .(
   variable, fold, Penalty.Params, FPOP.diff, BINSEG.diff)]
 
+pred.point.diff
+
 
 gg.vars <- ggplot()+
   theme_bw()+
@@ -221,9 +211,10 @@ pred.point.wide <- dcast(
   value.var="percent.error")
 pred.point.tall <- melt(
   pred.point.wide,
-  measure.vars=c("FPOP", "BINSEG"),
+  measure.vars=c("FPOP", "BINSEG", "LOPART"),
   variable.name="competitor",
   value.name="percent.error")
+pred.point.tall
 gg.comp <- ggplot()+
   theme_bw()+
   theme(panel.spacing=grid::unit(0, "lines"))+
@@ -257,9 +248,8 @@ gg <- ggplot()+
     ##limits=c(15, 85),
     breaks=seq(20, 80, by=20))
 pdf("figure-cv-BIC.pdf", width=6, height=1.8)
-show(gg)
-dev.off()
 print(gg)
+dev.off()
 
 
 

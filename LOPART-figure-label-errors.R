@@ -1,14 +1,19 @@
 library(data.table)
 library(ggplot2)
 
-
 err.dt <- data.table(csv=Sys.glob("figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+err.dt <- err.dt[model == "Flopart"]
+
+lopart_err.dt <- data.table(csv=Sys.glob("LOPART-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+
+err.dt <- rbind(err.dt, lopart_err.dt)
+
 err.dt <- err.dt[order(dataset, sample.id, fold, pen)]
 err.dt[, errors := fp + fn]
 
 
 algo.colors <- c(
-  FPOP = "deepskyblue",
+  LOPART = "red",
   FLOPART = "black"
 )
 
@@ -24,6 +29,8 @@ total.dt <- dcast(
   dataset + sample.id + fold + model + pen ~ set.i,
   value.var="errors")
 
+print(total.dt[train > 3])
+
 total.dt[, train.test := test+train]
 
 total.min <- total.dt[, .SD[
@@ -34,9 +41,9 @@ total.min.wide <- dcast(
   dataset + sample.id + fold ~ model,
   value.var=c("test", "train", "train.test"))
 
-total.min.wide[, diff := train.test_FPOP-train.test_Flopart]
+total.min.wide[, diff := train.test_LOPART-train.test_Flopart]
 
-total.min.wide[, train.test.diff := train.test_FPOP - train.test_Flopart]
+total.min.wide[, train.test.diff := train.test_LOPART - train.test_Flopart]
 
 
 mytab <- function(dt, col.name){
@@ -65,41 +72,42 @@ mytab <- function(dt, col.name){
     summary=sum.tall)
 }
 
-mytab(total.min.wide, "train_FPOP")
+mytab(total.min.wide, "train_LOPART")
 
-total.min.wide[, test.diff_FPOP := test_FPOP-test_Flopart]
+total.min.wide[, test.diff_LOPART := test_LOPART-test_Flopart]
 
-mytab(total.min.wide, "test.diff_FPOP")
+mytab(total.min.wide, "test.diff_LOPART")
+
+testing <- total.min[train > 0]
 
 train.test.counts <- total.min.wide[, .(
   splits=.N
-), by=.(train_FPOP, test.diff_FPOP)]
+), by=.(train_LOPART, test.diff_LOPART)]
 
 
 gg <- ggplot()+
   ggtitle("Best case comparison
-with GFPOP")+
+with LOPART")+
   geom_hline(yintercept=0, color="grey")+
   geom_vline(xintercept=0, color="grey")+
   geom_tile(aes(
-    train_FPOP, test.diff_FPOP, fill=log10(splits)),
+    train_LOPART, test.diff_LOPART, fill=log10(splits)),
     alpha=0.8,
     data=train.test.counts)+
   geom_text(aes(
-    train_FPOP, test.diff_FPOP, label=splits),
+    train_LOPART, test.diff_LOPART, label=splits),
     data=train.test.counts)+
-  scale.for("FPOP")+
+  scale.for("LOPART")+
   coord_equal()+
   theme_bw()+
   scale_x_continuous(
-    "GFPOP train label errors
+    "LOPART train label errors
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
-(GFPOP-FLOPART)") + theme(text = element_text(size = 14))   
+(LOPART-FLOPART)") + theme(text = element_text(size = 14)) 
 
-
-pdf("figure-label-errors.pdf", width=4, height=4)
+pdf("LOPART-figure-label-errors.pdf", width=4, height=4)
 print(gg)
 dev.off()
 show(gg)
@@ -117,47 +125,48 @@ total.min.wide <- dcast(
   dataset + sample.id + fold ~ model,
   value.var=c("test", "train", "train.test"))
 
-total.min.wide[, diff := train.test_FPOP-train.test_Flopart]
+total.min.wide[, diff := train.test_LOPART-train.test_Flopart]
 
-total.min.wide[, train.test.diff := train.test_FPOP - train.test_Flopart]
+total.min.wide[, train.test.diff := train.test_LOPART - train.test_Flopart]
 
-mytab(total.min.wide, "train_FPOP")
+mytab(total.min.wide, "train_LOPART")
 
-total.min.wide[, test.diff_FPOP := test_FPOP-test_Flopart]
+total.min.wide[, test.diff_LOPART := test_LOPART-test_Flopart]
 
-mytab(total.min.wide, "test.diff_FPOP")
+mytab(total.min.wide, "test.diff_LOPART")
 
 train.test.counts <- total.min.wide[, .(
   splits=.N
-), by=.(train_FPOP, test.diff_FPOP)]
+), by=.(train_LOPART, test.diff_LOPART)]
 
 
 gg <- ggplot()+
   ggtitle("Best case comparison
-with FPOP")+
+with LOPART")+
   geom_hline(yintercept=0, color="grey")+
   geom_vline(xintercept=0, color="grey")+
   geom_tile(aes(
-    train_FPOP, test.diff_FPOP, fill=log10(splits)),
+    train_LOPART, test.diff_LOPART, fill=log10(splits)),
     alpha=0.8,
     data=train.test.counts)+
   geom_text(aes(
-    train_FPOP, test.diff_FPOP, label=splits),
+    train_LOPART, test.diff_LOPART, label=splits),
     data=train.test.counts)+
-  scale.for("FPOP")+
+  scale.for("LOPART")+
   coord_equal()+
   theme_bw()+
   scale_x_continuous(
-    "FPOP train label errors
+    "LOPART train label errors
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
-(FPOP-FLOPART)")
+(LOPART-FLOPART)")
 
 
-pdf("figure-label-errors-min-train.pdf", width=3, height=2.3)
+pdf("LOPART-figure-label-errors-min-train.pdf", width=8, height=8)
 print(gg)
 dev.off()
+show(gg)
 
 
 
