@@ -4,13 +4,12 @@ library(ggplot2)
 err.dt <- data.table(csv=Sys.glob("figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
 err.dt <- err.dt[model == "Flopart"]
 
-lopart_err.dt <- data.table(csv=Sys.glob("LOPART-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+lopart.err.dt <- data.table(csv=Sys.glob("LOPART-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
 
-err.dt <- rbind(err.dt, lopart_err.dt)
+err.dt <- rbind(err.dt, lopart.err.dt)
 
 err.dt <- err.dt[order(dataset, sample.id, fold, pen)]
 err.dt[, errors := fp + fn]
-
 
 algo.colors <- c(
   LOPART = "red",
@@ -28,8 +27,6 @@ total.dt <- dcast(
   data.table(data.frame(err.dt)),
   dataset + sample.id + fold + model + pen ~ set.i,
   value.var="errors")
-
-print(total.dt[train > 3])
 
 total.dt[, train.test := test+train]
 
@@ -119,6 +116,8 @@ rank <- total.dt[, rank := order(train,test), by=.(dataset, sample.id, model, fo
 
 total.min <- rank[, .SD[
   which.min(rank)], by=.(dataset, sample.id, fold, model)]
+
+testing <- total.min[train > 0]
 
 total.min.wide <- dcast(
   total.min,

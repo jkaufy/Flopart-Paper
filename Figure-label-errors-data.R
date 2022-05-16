@@ -7,18 +7,18 @@ H3K_data <- loadH3KData()
 
 # increase above 10 log scale
 #old_penalties <- 10^seq(-5, 5, by=0.5)
-penalties <- 10^seq(5, 6, by=0.5)
+penalties <- 10^seq(-5, 6, by=0.5)
 
 n.fold <- 2
 
 sets <- list("train","test")
-algoritms <- list(Flopart = FLOPART::FLOPART, 
-    FPOP =  PeakSegOptimal::PeakSegFPOPchrom)
+algoritms <- list(
+  Flopart = FLOPART::FLOPART
+  ,GFPOP =  PeakSegOptimal::PeakSegFPOPchrom
+)
 
-cache.prefix <- "wider-figure-label-errors-data"
+cache.prefix <- "figure-label-errors-data"
 feature.list <- list()
-
-count = 0
 
 for(dataset in 1:length(H3K_data$count)){
   print(dataset)
@@ -30,7 +30,6 @@ for(dataset in 1:length(H3K_data$count)){
   sample_split_label <- split(one_label, one_label$sample.id)
   
   if (!('peaks' %in% one_label$annotation)){
-    count = count + 1
     for (sample.id in names(sample_split_count)){
       sample.err.list <- list()
       

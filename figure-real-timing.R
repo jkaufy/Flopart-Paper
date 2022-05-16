@@ -1,9 +1,8 @@
 library(data.table)
 library(ggplot2)
-library(tikzDevice)
 
-timings.dt <- data.table::fread("figure-real-timings-data-small-pen.csv")
-timings.dt <- timings.dt[expr %in% c("FPOP", "binsegRcpp", "LOPART", "FLOPART")]
+timings.dt <- data.table::fread("figure-real-timings-data.csv")
+timings.dt <- timings.dt[expr %in% c("GFPOP", "BINSEG", "LOPART", "FLOPART")]
 timings.dt[, seconds := time/1e9]
 timing.stats <- timings.dt[, .(
   min=min(seconds),
@@ -13,15 +12,15 @@ timing.stats <- timings.dt[, .(
 ref.dt <- data.table(seconds=c(1, 60), label=c("1 second", "1 minute"))
 
 algo.colors <- c(
-  FPOP="deepskyblue",
-  FLOPART="blue",
-  binsegRcpp = "#ECAE5E",
+  GFPOP="deepskyblue",
+  FLOPART="darkgrey",
+  BINSEG = "orange",
   LOPART = "red")
 
 
 gg <- ggplot()+
   ggtitle(
-    "H3K Genomic Data Timings")+
+    "ChIP-seq Genomic Timings")+
   geom_hline(aes(
     yintercept=seconds),
     data=ref.dt,
@@ -43,14 +42,14 @@ gg <- ggplot()+
     size=2,
     data=timing.stats)+
   scale_x_log10(
-    "Size of Dataset $N$")+
+    "Size of Dataset",
+    limits = c(NA, 1e6))+
   scale_y_log10("Computation time (sec.)")+
   theme_bw()
-library(directlabels)
-direct.label(gg, method = "Algorithm")
-show(gg)
 
-dl <- directlabels::direct.label(gg, list(cex=0.7, "last.qp"))
-tikz("figure-timings-labels.tex", width=5, height=3)
-print(dl)
+labelled <- directlabels::direct.label(gg, "right.polygons")
+
+pdf("figure-real-timing.pdf", width=9, height=3.4)
+print(labelled)
 dev.off()
+show(labelled)

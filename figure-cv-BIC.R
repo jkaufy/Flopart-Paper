@@ -33,7 +33,7 @@ feature.mat <- feature.dt[, matrix(
   ncol=1,
   dimnames=list(sequenceID=sequenceID, feature="log.log.data"))]
 
-err.train <- err.dt[set.i=="train" & model %in% c("FPOP", "BINSEG", "LOPART")]
+err.train <- err.dt[set.i=="train" & model %in% c("GFPOP", "BINSEG", "LOPART")]
 
 pred.dt <- err.train[, {
   best.penalty <- .SD[, .(
@@ -67,7 +67,7 @@ pred.dt <- err.train[, {
 auc.dt <- err.test[, {
   select.dt <- data.table(
     fold,
-    model = if(model == "BINSEG")"BINSEG"  else if (model == "LOPART") "LOPART" else "FPOP")
+    model = "GFPOP")
   pred.fold <- pred.dt[select.dt, on=names(select.dt)]
   model.dt <- .SD[order(sequenceID, min.log.lambda)]
   pred.fold[, {
@@ -94,11 +94,11 @@ pred.point.dt <-
     )][possible.dt, on=.(fold)]
   
 pred.point.dt[, label := paste0(model, ifelse(is.na(auc), "", sprintf(" AUC = %.3f", auc)))]
-pred.point.dt[, label.x := rep(.9, .N)]
+pred.point.dt[, label.x := rep(1, .N)]
 pred.point.dt[, label.y := rep(c(0.8,0.75,0.7, 0.65), each = 3, 2)]
 
 algo.colors <- c(
-  FPOP = "blue",
+  GFPOP = "blue",
   FLOPART = "grey50",
   BINSEG = "#ECAE5E",
   LOPART = "red")
@@ -108,12 +108,12 @@ gg <- ggplot()+
   scale_color_manual(values=algo.colors)+
   scale_size_manual(values=c(
     BINSEG=1.25,
-    FPOP=1.25,
+    GFPOP=1.25,
     LOPART=1.25,
     Flopart=1.5))+
   geom_text((aes(
     x = label.x, y = label.y,
-    color=model,
+    color=model, hjust=1,
     label= label)),
     size = 3,
     data=pred.point.dt)+
@@ -144,12 +144,12 @@ gg <- ggplot()+
     labels=c("0", "0.5", "1"))+
   scale_y_continuous(
     "True Positive Rate (test set labels)",
-    limits=c(0.5, 1),
-    breaks=c(0.5, 1),
-    labels=c("0.5", "1"))
+    labels=c("0.5", "1"),
+    breaks=c(0.5, 1)) +
+  coord_cartesian(ylim=c(0.5,1)) 
 
 expansion <- 2
-pdf("figure-cv-BIC-roc.pdf", width=4.5*expansion, height=2.5*expansion)
+pdf("figure-cv-BIC-roc.pdf", width=4.5*expansion, height=2*expansion)
 print(gg)
 dev.off()
 
@@ -157,7 +157,7 @@ auc.wide <- dcast(
   auc.dt,
   fold + Parameters + Penalty ~ model,
   value.var = "auc")
-auc.wide[, diff := FPOP-Flopart]
+auc.wide[, diff := GFPOP-Flopart]
 auc.wide
 
 pred.point.dt[, fn := possible.fn-tp ]
@@ -174,17 +174,16 @@ pred.point.diff <- dcast(
   value.var="value")
 pred.point.compare <- melt(
   pred.point.diff,
-  measure.vars=c("FPOP", "BINSEG"),
+  measure.vars=c("GFPOP"),
   variable.name="baseline")
 pred.point.compare[, improvement := Flopart - value]
 pred.point.compare[, .(
   min=min(improvement),
   max=max(improvement)
 ), by=.(baseline, variable)]
-pred.point.diff[, FPOP.diff := Flopart - FPOP ]
-pred.point.diff[, BINSEG.diff := Flopart - BINSEG ]
+pred.point.diff[, GFPOP.diff := Flopart - GFPOP ]
 pred.point.diff[order(variable, Penalty.Params, fold), .(
-  variable, fold, Penalty.Params, FPOP.diff, BINSEG.diff)]
+  variable, fold, Penalty.Params, GFPOP.diff)]
 
 pred.point.diff
 
@@ -211,42 +210,39 @@ pred.point.wide <- dcast(
   value.var="percent.error")
 pred.point.tall <- melt(
   pred.point.wide,
-  measure.vars=c("FPOP", "BINSEG", "LOPART"),
+  measure.vars=c("GFPOP", "BINSEG", "LOPART"),
   variable.name="competitor",
   value.name="percent.error")
 pred.point.tall
-gg.comp <- ggplot()+
-  theme_bw()+
-  theme(panel.spacing=grid::unit(0, "lines"))+
-  facet_grid(. ~ competitor)+
-  geom_abline(aes(
-    slope=slope, intercept=intercept),
-    color="grey50",
-    data=data.table(slope=1, intercept=0))+
-  geom_point(aes(
-    Flopart, percent.error, color=Penalty.Params),
-    data=pred.point.tall)+
-  coord_equal()
+
+to.plot <- pred.point.dt[Penalty != "BIC"]
+to.plot[, fold.id := as.character(fold)]
+
+fold.colors <- c("1" = "blue","2" = "red")
+
 gg <- ggplot()+
   theme_bw()+
   theme(
     legend.position="bottom",
     panel.spacing=grid::unit(0, "lines"))+
   geom_point(aes(
-    percent.accuracy, Penalty.Params, color = model),
+    percent.accuracy, model, color = fold.id),
     shape=18,
     size=4,
-    data=pred.point.dt)+
-  facet_grid(. ~ fold, labeller=label_both)+
+    data=to.plot)+
+  facet_grid(. ~ Penalty.Params, labeller=label_both)+
   scale_color_manual(
-    "Algorithm",
-    values=algo.colors,
-    breaks=names(algo.colors)
+    "Fold",
+    values=fold.colors,
+    breaks=names(fold.colors)
   )+
   scale_x_continuous(
     "Test accuracy (percent correctly predicted labels)",
     ##limits=c(15, 85),
-    breaks=seq(20, 80, by=20))
+    breaks=seq(20, 80, by=10)) +
+  ylab("Algorithms")
+
+
 pdf("figure-cv-BIC.pdf", width=6, height=1.8)
 print(gg)
 dev.off()

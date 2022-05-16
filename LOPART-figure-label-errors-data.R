@@ -2,7 +2,7 @@
 # Load in all data sets
 library(data.table)
 
-maxJumpRule <- function (seg.dt, count.dt){
+xmaxJumpRule <- function (seg.dt, count.dt){
   seg.dt[, diff := c(diff(mean),NA)]
   seg.dt[, sign := sign(diff)]
   seg.dt[, new.group := c(TRUE,diff(sign) != 0)]
@@ -28,13 +28,13 @@ source("Load-All-H3k-Data.R")
 H3K_data <- loadH3KData()
 
 # increase above 10 log scale
-penalties <- 10^seq(5, 6, by=0.5)
+penalties <- 10^seq(-5, 6, by=0.5)
 n.fold <- 2
 model <- "LOPART"
 
 sets <- list("train","test")
 
-cache.prefix <- "wider-LOPART-figure-label-errors-data"
+cache.prefix <- "LOPART-figure-label-errors-data"
 
 for(dataset in 1:length(H3K_data$count)){
   print(dataset)
@@ -63,22 +63,24 @@ for(dataset in 1:length(H3K_data$count)){
           # for each fold
           for(fold in 1:n.fold){
             segs.list <- list()
-            
-            setDT(one_sample_count)
-            one_sample_count[, weight.vec := chromEnd-chromStart]
 
             setDT(one_sample_label)
             one_sample_label[, set := ifelse(fold == random.fold, "test", "train")]
             one_sample_label[, changes := ifelse(annotation == "noPeaks", 0, 1)]
             
-            lopart_labels <- FLOPART::FLOPART_data(one_sample_count, one_sample_label)$label_dt
+            flopart_data <- FLOPART::FLOPART_data(one_sample_count, one_sample_label)
             
-            one_sample_label[, start := lopart_labels$firstRow]
-            one_sample_label[, end := ifelse(lopart_labels$lastRow < nrow(one_sample_count),lopart_labels$lastRow , nrow(one_sample_count))]
+            lopart_count <- flopart_data$coverage_dt
+            lopart_labels <- flopart_data$label_dt[order(chromStart)]
             
-            fit <- LOPART::POISSON_LOPART(one_sample_count$count,one_sample_count$weight.vec, one_sample_label[set == "train"], pen)
+            one_sample_label <- one_sample_label[order(chromStart)]
+            one_sample_label[, start := lopart_labels$firstRow + 1]
+            one_sample_label[, end := lopart_labels$lastRow + 1]
             
-            seg.dt <- maxJumpRule(data.table(fit$segments), one_sample_count)
+            fit <- LOPART::POISSON_LOPART(lopart_count$count,
+                lopart_count$weight, one_sample_label[set == "train"], pen)
+            
+            seg.dt <- maxJumpRule(data.table(fit$segments), lopart_count)
             pkg.segs <- seg.dt[, .(chromStart, chromEnd, mean, status)]
             pkg.peaks <- pkg.segs[status=="peak"]
             for (set.i in sets){  

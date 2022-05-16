@@ -20,8 +20,8 @@ counts <- data.table(
   count = as.integer(count.vec))
 
 labels = data.table(
-  chromStart = c(4, 22, 30),
-  chromEnd = c(7, 25, 34),
+  chromStart = c(3, 22, 30),
+  chromEnd = c(7, 25, 33),
   annotation = c("noPeaks", "peakEnd", "peakStart"))
   
 ann.colors <- c(
@@ -37,7 +37,7 @@ FLOPART.segs <- flopart[["segments_dt"]]
 fit <- PeakSegOptimal::PeakSegFPOPchrom(counts, penalty)
 seg.dt <- data.table(fit$segments)
 
-node.dt <- data.table::CJ(state=c(-1,1), data.num=1:num.labels)
+node.dt <- data.table::CJ(state=c(-1,1), data.num=1:num.labels-1)
 node.dt[, next.num := data.num+1]
 edge.dt <- node.dt[node.dt, on=.(next.num=data.num), nomatch=0L]
 edge.dt[, type := ifelse(i.state==state, "no change", "change")]
@@ -142,7 +142,7 @@ showOptimalPath <- function(possible.edges, segs.dt) {
 addLast <- function(seg.dt){
   
   last <- seg.dt[nrow(seg.dt)]
-  last[, chromStart := chromEnd+1]
+  last[, chromStart := chromEnd]
   seg.dt <- rbind(seg.dt, last)
   
   return (seg.dt)
@@ -153,12 +153,12 @@ flopart.optimal = showOptimalPath(flopart.edges, FLOPART.segs)
 FPOP.optimal = showOptimalPath(edge.dt, seg.dt)
 
 seg.dt.list <- list(
-  FLOPART=FLOPART.segs,
-  GFPOP= seg.dt)
+  "FLOPART (proposed)"=FLOPART.segs,
+  "GFPOP (previous)"= seg.dt)
 
 node.dt.list <- list(
-  FLOPART=flopart.optimal,
-  GFPOP= FPOP.optimal
+  "FLOPART (proposed)"=flopart.optimal,
+  "GFPOP (previous)"= FPOP.optimal
 )
 
 model.segs.list = list()
@@ -186,19 +186,21 @@ line.colors <- c(
 
 model.color <- "blue"
 
+names(labels)[names(labels) == 'annotation'] <- 'label'
+
 gg <- ggplot()+
   facet_grid(algortihm ~ ., labeller=label_both)+
   geom_rect(aes(
     xmin=chromStart, xmax=chromEnd,
-    fill=annotation,
+    fill=label,
     ymin=-Inf, ymax=Inf),
     data=labels,
     color="grey",
     alpha=0.5)+
   theme_bw()+
   scale_fill_manual(values=ann.colors)+
-  scale_y_continuous("Count of aligned DNA sequence reads")+
-  scale_x_continuous("Position on chromosome (bases)")+
+  scale_x_continuous("Index/position in data sequence")+
+  scale_y_continuous("Data and segment mean value")+
   geom_rect(aes(
     xmin=chromStart, xmax=chromEnd,
     ymin=-Inf, ymax=Inf,
@@ -214,7 +216,7 @@ gg <- ggplot()+
       "false negative"=3,
       "false positive"=1))+
   geom_point(aes(
-    chromEnd, count),
+    chromStart, count),
     color="grey50",
     fill="white",
     data=counts,
@@ -236,7 +238,7 @@ gg <- ggplot()+
     xend=next.num-0.2, yend=i.state+ifelse(i.state!=state, -i.state*0.4, 0), color = path),
     arrow=grid::arrow(length=unit(0.05, "in"), type="open"),
     size = 0.3,
-    data=model.nodes) + theme(text = element_text(size = 10))  
+    data=model.nodes) + theme(text = element_text(size = 9))  
 
 pdf("figure-computation-graph.pdf", width=8, height=3.5)
 print(gg)

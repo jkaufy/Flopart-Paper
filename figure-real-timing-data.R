@@ -3,7 +3,7 @@ library(microbenchmark)
 library(data.table)
 
 H3K_data <- loadH3KData()
-pen <- 0.001
+pen <- 5
 
 timing_list <- list()
 # length(H3K_data$count)
@@ -30,6 +30,7 @@ for(dataset in 1:length(H3K_data$count)){
       
       lopart_labels <- FLOPART::FLOPART_data(one_sample_count, one_sample_label)$label_dt
       
+      one_sample_label <- one_sample_label[order(chromStart)]
       one_sample_label[, start := lopart_labels$firstRow]
       one_sample_label[, end := ifelse(lopart_labels$lastRow < nrow(one_sample_count),lopart_labels$lastRow , nrow(one_sample_count))]
       one_sample_label[, changes := ifelse(annotation=="noPeaks", 0, 1)]
@@ -41,10 +42,10 @@ for(dataset in 1:length(H3K_data$count)){
         FLOPART={
           FLOPART::FLOPART(one_sample_count, one_sample_label, pen)
         },
-        FPOP={
+        GFPOP={
           PeakSegOptimal::PeakSegFPOPchrom(one_sample_count, pen)
         },
-        binsegRcpp={
+        BINSEG={
           binsegRcpp::binseg('poisson', data.vec = one_sample_count$count, 
               weight.vec = one_sample_count$weight.vec, max.segments = nrow(Lfit$segments_dt))
         },

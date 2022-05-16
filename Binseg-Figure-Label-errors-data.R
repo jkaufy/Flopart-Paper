@@ -21,8 +21,6 @@ maxJumpRule <- function (seg.dt, count.dt){
   {
     group.dt <- data.table( mean = numeric(), chromStart=numeric(), chromEnd=numeric(), status=character())
   }
-
-
 }
 
 source("Load-All-H3k-Data.R")
@@ -30,7 +28,7 @@ source("Load-All-H3k-Data.R")
 H3K_data <- loadH3KData()
 
 # increase above 10 log scale
-penalties <- 10^seq(-5, 5, by=0.5)
+penalties <- 10^seq(-5, 6, by=0.5)
 grid.dt <- data.table(penalty=penalties)
 grid.dt[, penalty0 := penalty]
 n.fold <- 2
@@ -38,11 +36,8 @@ n.fold <- 2
 sets <- list("train","test")
 model <- "BINSEG"
 
-cache.prefix <- "New-Binseg-figure-label-errors-data"
-cache.count <- "figure-label-cache-count"
+cache.prefix <- "Binseg-figure-label-errors-data"
 
-feature.list <- list()
-# length(H3K_data$count)
 for(dataset in 1:length(H3K_data$count)){
   print(dataset)
   
@@ -58,8 +53,7 @@ for(dataset in 1:length(H3K_data$count)){
       
       cache.save <- paste(dataset, "-", sample.id, ".csv", sep = "")
       cache.file <- file.path(cache.prefix, cache.save)
-      cache.c.file <- file.path(cache.count, cache.save)
-      
+
       one_sample_count <- sample_split_count[[sample.id]]
       
       if(!file.exists(cache.file)){
@@ -69,9 +63,6 @@ for(dataset in 1:length(H3K_data$count)){
         
         setDT(one_sample_count)
         one_sample_count[, weight.vec := chromEnd-chromStart]
-        
-        # dir.create(dirname(cache.c.file), showWarnings = FALSE, recursive = TRUE)
-        # data.table::fwrite(one_sample_count, cache.c.file)
         
         fit <- binsegRcpp::binseg('poisson', one_sample_count$count, 
                              weight.vec = one_sample_count$weight.vec)

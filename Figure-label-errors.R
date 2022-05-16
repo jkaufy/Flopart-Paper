@@ -2,13 +2,13 @@ library(data.table)
 library(ggplot2)
 
 
-err.dt <- data.table(csv=Sys.glob("figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+err.dt <- data.table(csv=Sys.glob("final-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
 err.dt <- err.dt[order(dataset, sample.id, fold, pen)]
 err.dt[, errors := fp + fn]
 
 
 algo.colors <- c(
-  FPOP = "deepskyblue",
+  GFPOP = "deepskyblue",
   FLOPART = "black"
 )
 
@@ -34,9 +34,9 @@ total.min.wide <- dcast(
   dataset + sample.id + fold ~ model,
   value.var=c("test", "train", "train.test"))
 
-total.min.wide[, diff := train.test_FPOP-train.test_Flopart]
+total.min.wide[, diff := train.test_GFPOP-train.test_Flopart]
 
-total.min.wide[, train.test.diff := train.test_FPOP - train.test_Flopart]
+total.min.wide[, train.test.diff := train.test_GFPOP - train.test_Flopart]
 
 
 mytab <- function(dt, col.name){
@@ -65,15 +65,15 @@ mytab <- function(dt, col.name){
     summary=sum.tall)
 }
 
-mytab(total.min.wide, "train_FPOP")
+mytab(total.min.wide, "train_GFPOP")
 
-total.min.wide[, test.diff_FPOP := test_FPOP-test_Flopart]
+total.min.wide[, test.diff_GFPOP := test_GFPOP-test_Flopart]
 
-mytab(total.min.wide, "test.diff_FPOP")
+mytab(total.min.wide, "test.diff_GFPOP")
 
 train.test.counts <- total.min.wide[, .(
   splits=.N
-), by=.(train_FPOP, test.diff_FPOP)]
+), by=.(train_GFPOP, test.diff_GFPOP)]
 
 
 gg <- ggplot()+
@@ -82,13 +82,13 @@ with GFPOP")+
   geom_hline(yintercept=0, color="grey")+
   geom_vline(xintercept=0, color="grey")+
   geom_tile(aes(
-    train_FPOP, test.diff_FPOP, fill=log10(splits)),
+    train_GFPOP, test.diff_GFPOP, fill=log10(splits)),
     alpha=0.8,
     data=train.test.counts)+
   geom_text(aes(
-    train_FPOP, test.diff_FPOP, label=splits),
+    train_GFPOP, test.diff_GFPOP, label=splits),
     data=train.test.counts)+
-  scale.for("FPOP")+
+  scale.for("GFPOP")+
   coord_equal()+
   theme_bw()+
   scale_x_continuous(
@@ -117,38 +117,38 @@ total.min.wide <- dcast(
   dataset + sample.id + fold ~ model,
   value.var=c("test", "train", "train.test"))
 
-total.min.wide[, diff := train.test_FPOP-train.test_Flopart]
+total.min.wide[, diff := train.test_GFPOP-train.test_Flopart]
 
-total.min.wide[, train.test.diff := train.test_FPOP - train.test_Flopart]
+total.min.wide[, train.test.diff := train.test_GFPOP - train.test_Flopart]
 
-mytab(total.min.wide, "train_FPOP")
+mytab(total.min.wide, "train_GFPOP")
 
-total.min.wide[, test.diff_FPOP := test_FPOP-test_Flopart]
+total.min.wide[, test.diff_GFPOP := test_GFPOP-test_Flopart]
 
-mytab(total.min.wide, "test.diff_FPOP")
+mytab(total.min.wide, "test.diff_GFPOP")
 
 train.test.counts <- total.min.wide[, .(
   splits=.N
-), by=.(train_FPOP, test.diff_FPOP)]
+), by=.(train_GFPOP, test.diff_GFPOP)]
 
 
 gg <- ggplot()+
   ggtitle("Best case comparison
-with FPOP")+
+with GFPOP")+
   geom_hline(yintercept=0, color="grey")+
   geom_vline(xintercept=0, color="grey")+
   geom_tile(aes(
-    train_FPOP, test.diff_FPOP, fill=log10(splits)),
+    train_GFPOP, test.diff_GFPOP, fill=log10(splits)),
     alpha=0.8,
     data=train.test.counts)+
   geom_text(aes(
-    train_FPOP, test.diff_FPOP, label=splits),
+    train_GFPOP, test.diff_GFPOP, label=splits),
     data=train.test.counts)+
-  scale.for("FPOP")+
+  scale.for("GFPOP")+
   coord_equal()+
   theme_bw()+
   scale_x_continuous(
-    "FPOP train label errors
+    "GFPOP train label errors
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
