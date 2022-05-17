@@ -9,3 +9,6 @@ Figures for Functional Labeled Optimal Partitioning paper
   - Figure 4: [[file:figure-cv-BIC-roc.pdf][ROC curves]].
 
 Reproducibility: Use ~renv::restore()~ to reinstall all of the packages needed to reproduce the results.
+
+
+
