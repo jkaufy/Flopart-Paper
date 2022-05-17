@@ -8,4 +8,4 @@ Figures for Functional Labeled Optimal Partitioning paper
 - Comparison with BIC figures. [[file:figure-cv-BIC.R][R script]]:
   - Figure 4: [[file:figure-cv-BIC-roc.pdf][ROC curves]].
 
-Reproducibility: Use <code>renv::restore()</code> to reinstall all of the packages needed to reproduce the results.
+Reproducibility: Use ~renv::restore()~ to reinstall all of the packages needed to reproduce the results.
