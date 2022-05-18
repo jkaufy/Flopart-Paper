@@ -101,7 +101,9 @@ with BINSEG")+
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
-(BINSEG-FLOPART)") + theme(text = element_text(size = 14)) 
+(BINSEG-FLOPART)",
+    breaks=seq(-5, 5)) + 
+  theme(text = element_text(size = 14)) 
 pdf("Binseg-figure-label-errors.pdf", width=4, height=4)
 print(gg)
 dev.off()

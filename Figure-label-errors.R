@@ -2,7 +2,7 @@ library(data.table)
 library(ggplot2)
 
 
-err.dt <- data.table(csv=Sys.glob("final-figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
+err.dt <- data.table(csv=Sys.glob("figure-label-errors-data*/*.csv"))[, {data.table::fread(csv)}, by=csv]
 err.dt <- err.dt[order(dataset, sample.id, fold, pen)]
 err.dt[, errors := fp + fn]
 
@@ -96,7 +96,9 @@ with GFPOP")+
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
-(GFPOP-FLOPART)") + theme(text = element_text(size = 14))   
+(GFPOP-FLOPART)",
+    breaks=seq(-5, 5)) + 
+  theme(text = element_text(size = 14))   
 
 
 pdf("figure-label-errors.pdf", width=4, height=4)
@@ -152,7 +154,8 @@ with GFPOP")+
 (FLOPART is always=0)")+
   scale_y_continuous(
     "Test label error difference
-(FPOP-FLOPART)")
+(FPOP-FLOPART)",
+    breaks=seq(-5, 5))
 
 
 pdf("figure-label-errors-min-train.pdf", width=3, height=2.3)
